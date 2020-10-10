@@ -1,0 +1,11 @@
+.Rhistory
+.Rapp.history
+*.RData
+.Ruserdata
+.Rproj.user/
+.Renviron
+*.csv
+*.xlsx
+*.xls
+*.sas7bdat
+*.RDs
