@@ -1,0 +1,67 @@
+---
+title: "Preparacion de datos"
+author: "Miguel Coto Garcia"
+output: html_notebook
+---
+
+Cargando paquetes
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(here)
+library(tidyverse)
+
+```
+
+
+# Rutas
+```{r}
+
+raw_data <- here("data", "raw")
+interim_data <- here("data", "interim")
+
+```
+
+# Transformando datos
+
+## Leyendo bases
+```{r}
+
+base <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"), sheet = "Base") %>% 
+  janitor::clean_names()
+nuevos <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"), sheet = "Casos nuevos")%>% 
+  janitor::clean_names()
+profesiones <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"), sheet = "profesiones")%>% 
+  janitor::clean_names()
+estado_civil <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"), sheet = "estado_civil")%>% 
+  janitor::clean_names()
+ingresos <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"), sheet = "tipo_ingresos")%>% 
+  janitor::clean_names()
+
+```
+
+
+## Asignando categorias de profesion y de ingresos
+```{r}
+
+base_final <- base %>% 
+  left_join(ingresos, by = "codg_sector_trab") %>% 
+  left_join(profesiones, by = "codigo_profesion") %>% 
+  select(-c(tipo_ingresos, profesion, profesion2, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
+  mutate(buen_pagador = if_else(buen_pagador=="bueno",1,0)) %>% 
+  rename(tipo_ingresos = tipo_ingresos_2,
+         profesion = profesion3)
+
+head(base_final)
+```
+```{r}
+nuevos_final <- nuevos %>% 
+  left_join(ingresos, by = "codg_sector_trab") %>% 
+  left_join(profesiones, by = "codigo_profesion") %>% 
+  select(-c(tipo_ingresos, profesion, profesion2, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
+  rename(tipo_ingresos = tipo_ingresos_2,
+         profesion = profesion3)
+
+head(nuevos_final)
+
+```
+
