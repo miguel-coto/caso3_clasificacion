@@ -1,0 +1,308 @@
+---
+title: "Exploracion de datos"
+author: "Miguel Coto Garcia"
+output: html_notebook
+---
+
+Cargando paquetes
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(here)
+library(tidyverse)
+
+```
+
+
+# Rutas
+```{r}
+
+raw_data <- here("data", "raw")
+interim_data <- here("data", "interim")
+processed_data <- here("data", "processed")
+
+```
+
+## Leyendo bases
+```{r}
+base <- readRDS(file=paste0(processed_data,"/base_final.Rds"))
+
+head(base)
+```
+
+# Exploracion de datos
+
+## Cruce de variables
+
+### Proporcion de buenos pagadores por genero
+```{r}
+base %>%
+  group_by(genero) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(x = genero, y = prop, fill = genero)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  ggtitle("Proporcion de malos pagadores por genero")+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=15.25)
+
+```
+
+### Proporcion de buenos pagadores por edad
+```{r}
+base %>%
+  mutate(edad_cat = Hmisc::cut2(edad, g = 5)) %>%
+  filter(!is.na(edad_cat)) %>%
+  group_by(edad_cat) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  #group_by(genero) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(x = edad_cat, y = prop, fill = edad_cat)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Edad") +
+  ggtitle("Proporcion de malos pagadores por genero")
+
+```
+
+### Proporcion de buenos pagadores por estado civil
+```{r}
+base %>%
+  #filter(!is.na(estado_civil) & estado_civil != "RELIGIOSO") %>%
+  group_by(estado_civil) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(
+    x = reorder(estado_civil, -n),
+    y = n,
+    fill = estado_civil
+  )) +
+  geom_col() +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  ylab("n") +
+  xlab("Tipo de ingreso") +
+  ggtitle("Distribución por tipo de ingreso")+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
+```
+
+```{r}
+base %>%
+  filter(!is.na(estado_civil) & estado_civil != "RELIGIOSO") %>%
+  group_by(estado_civil) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(x = reorder(estado_civil, -prop), y = prop, fill = estado_civil)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Estado civil") +
+  ggtitle("Proporcion de malos pagadores por genero")
+
+```
+
+### Proporcion de malos pagadores por limite de tarjeta de credito
+```{r}
+base %>%
+  mutate(limite_cat = Hmisc::cut2(
+    limite_tarjeta_credito,
+    g = 5,
+    formatfun = scales::unit_format(
+      unit = "K",
+      scale = 1e-3,
+      accuracy = 2,
+      prefix = "₡"
+    )
+  )) %>%
+  filter(!is.na(limite_cat)) %>%
+  group_by(limite_cat) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(x = limite_cat, y = prop, fill = limite_cat)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Límite de crédito") +
+  ggtitle("Proporción de malos pagadores por límite de crédito")
+
+```
+
+### Proporcion de malos pagadores por saldo de tarjeta de credito
+```{r}
+base %>%
+  mutate(saldo_cat = Hmisc::cut2(
+    saldo_tarjeta,
+    g = 5,
+    formatfun = scales::unit_format(
+      unit = "K",
+      scale = 1e-3,
+      accuracy = 2,
+      prefix = "₡"
+    )
+  )) %>%
+  filter(!is.na(saldo_cat)) %>%
+  group_by(saldo_cat) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(x = saldo_cat, y = prop, fill = saldo_cat)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Saldo de tarjeta") +
+  ggtitle("Proporción de malos pagadores por saldo de tarjeta")
+
+```
+
+### Proporcion de malos pagadores por coeficiente de solvencia
+
+```{r}
+base %>%
+  mutate(
+    coeficiente_cat = Hmisc::cut2(
+      coeficiente_solvencia,
+      g = 5,
+      formatfun = scales::percent_format(accuracy = 2)
+    )
+  ) %>%
+  filter(!is.na(coeficiente_cat)) %>%
+  group_by(coeficiente_cat) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(x = coeficiente_cat, y = prop, fill = coeficiente_cat)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Coeficiente de solvencia") +
+  ggtitle("Proporción de malos pagadores por coeficiente de solvencia")
+
+```
+
+### Proporcion de buenos pagadores por tipo de ingreso
+```{r}
+base %>%
+  group_by(tipo_ingresos) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(
+    x = reorder(tipo_ingresos, -n),
+    y = n,
+    fill = tipo_ingresos
+  )) +
+  geom_col() +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  ylab("n") +
+  xlab("Tipo de ingreso") +
+  ggtitle("Distribución por tipo de ingreso")+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
+```
+
+
+```{r}
+base %>%
+  group_by(tipo_ingresos) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(
+    x = reorder(tipo_ingresos, -prop),
+    y = prop,
+    fill = tipo_ingresos
+  )) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_brewer(palette = "Dark2") +
+  theme(legend.position = "none",
+        plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Tipo de ingreso") +
+  ggtitle("Proporcion de malos pagadores por tipo de ingreso")
+
+```
+
+
+### Proporcion de buenos pagadores por profesión
+
+```{r}
+base %>%
+  group_by(profesion) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(
+    x = reorder(profesion, -n),
+    y = n,
+    fill = profesion
+  )) +
+  geom_col() +
+  scale_fill_manual(values = grDevices::colorRampPalette(RColorBrewer::brewer.pal(8, "Dark2"))(9)) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  ylab("n") +
+  xlab("Profesión") +
+  ggtitle("Distribución por profesión")+
+  geom_text(aes(label=n), position=position_dodge(width=0.9), vjust=-0.25)
+
+```
+
+```{r}
+base %>%
+  group_by(profesion) %>%
+  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
+  ggplot(aes(
+    x = reorder(profesion, -prop),
+    y = prop,
+    fill = profesion
+  )) +
+  geom_col() +
+  geom_errorbar(aes(ymin = prop - ci, ymax = prop + ci), width = 0.2) +
+  scale_fill_manual(values = grDevices::colorRampPalette(RColorBrewer::brewer.pal(8, "Dark2"))(9)) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Malos pagadores") +
+  xlab("Profesión") +
+  ggtitle("Proporcion de malos pagadores por profesión")
+
+
+
+```
+
+
+

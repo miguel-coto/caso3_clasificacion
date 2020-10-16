@@ -18,6 +18,7 @@ library(tidyverse)
 
 raw_data <- here("data", "raw")
 interim_data <- here("data", "interim")
+processed_data <- here("data", "processed")
 
 ```
 
@@ -46,10 +47,10 @@ ingresos <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"),
 base_final <- base %>% 
   left_join(ingresos, by = "codg_sector_trab") %>% 
   left_join(profesiones, by = "codigo_profesion") %>% 
-  select(-c(tipo_ingresos, profesion, profesion2, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
+  select(-c(tipo_ingresos, profesion, profesion2, profesion3, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
   mutate(buen_pagador = if_else(buen_pagador=="bueno",1,0)) %>% 
   rename(tipo_ingresos = tipo_ingresos_2,
-         profesion = profesion3)
+         profesion = profesion4)
 
 head(base_final)
 ```
@@ -57,11 +58,20 @@ head(base_final)
 nuevos_final <- nuevos %>% 
   left_join(ingresos, by = "codg_sector_trab") %>% 
   left_join(profesiones, by = "codigo_profesion") %>% 
-  select(-c(tipo_ingresos, profesion, profesion2, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
+  select(-c(tipo_ingresos, profesion, profesion2, profesion3, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
   rename(tipo_ingresos = tipo_ingresos_2,
-         profesion = profesion3)
+         profesion = profesion4)
 
 head(nuevos_final)
 
 ```
+
+
+
+```{r}
+saveRDS(base_final, file=paste0(processed_data,"/base_final.Rds"))
+saveRDS(nuevos_final, file=paste0(processed_data,"/nuevos_final.Rds"))
+
+```
+
 
