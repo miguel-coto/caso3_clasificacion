@@ -44,23 +44,48 @@ ingresos <- readxl::read_excel(paste0(raw_data,"/BASE TARJETAS DE CREDITO.xls"),
 ## Asignando categorias de profesion y de ingresos
 ```{r}
 
-base_final <- base %>% 
-  left_join(ingresos, by = "codg_sector_trab") %>% 
-  left_join(profesiones, by = "codigo_profesion") %>% 
-  select(-c(tipo_ingresos, profesion, profesion2, profesion3, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
-  mutate(buen_pagador = if_else(buen_pagador=="bueno",1,0)) %>% 
+base_final <- base %>%
+  left_join(ingresos, by = "codg_sector_trab") %>%
+  left_join(profesiones, by = "codigo_profesion") %>%
+  select(
+    -c(
+      tipo_ingresos,
+      profesion,
+      profesion2,
+      profesion3,
+      plazo_meses,
+      destino,
+      codigo_profesion,
+      codg_sector_trab
+    )
+  ) %>%
+  mutate(objetivo = if_else(buen_pagador == "bueno", 0, 1)) %>%
   rename(tipo_ingresos = tipo_ingresos_2,
-         profesion = profesion4)
+         profesion = profesion4) %>%
+  mutate(across(where(is.character), as.factor))
 
 head(base_final)
 ```
 ```{r}
-nuevos_final <- nuevos %>% 
-  left_join(ingresos, by = "codg_sector_trab") %>% 
-  left_join(profesiones, by = "codigo_profesion") %>% 
-  select(-c(tipo_ingresos, profesion, profesion2, profesion3, plazo_meses, destino, codigo_profesion, codg_sector_trab)) %>% 
+nuevos_final <- nuevos %>%
+  left_join(ingresos, by = "codg_sector_trab") %>%
+  left_join(profesiones, by = "codigo_profesion") %>%
+  select(
+    -c(
+      tipo_ingresos,
+      profesion,
+      profesion2,
+      profesion3,
+      plazo_meses,
+      destino,
+      codigo_profesion,
+      codg_sector_trab
+    )
+  ) %>%
   rename(tipo_ingresos = tipo_ingresos_2,
-         profesion = profesion4)
+         profesion = profesion4,
+         objetivo = buen_pagador) %>%
+  mutate(across(where(is.character), as.factor))
 
 head(nuevos_final)
 

@@ -37,7 +37,7 @@ head(base)
 ```{r}
 base %>%
   group_by(genero) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(x = genero, y = prop, fill = genero)) +
   geom_col() +
@@ -58,7 +58,7 @@ base %>%
   mutate(edad_cat = Hmisc::cut2(edad, g = 5)) %>%
   filter(!is.na(edad_cat)) %>%
   group_by(edad_cat) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   #group_by(genero) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(x = edad_cat, y = prop, fill = edad_cat)) +
@@ -77,7 +77,7 @@ base %>%
 ### Proporcion de buenos pagadores por estado civil
 ```{r}
 base %>%
-  #filter(!is.na(estado_civil) & estado_civil != "RELIGIOSO") %>%
+  filter(!is.na(estado_civil) & estado_civil != "RELIGIOSO") %>%
   group_by(estado_civil) %>%
   summarise(n = n()) %>%
   ggplot(aes(
@@ -102,7 +102,7 @@ base %>%
 base %>%
   filter(!is.na(estado_civil) & estado_civil != "RELIGIOSO") %>%
   group_by(estado_civil) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(x = reorder(estado_civil, -prop), y = prop, fill = estado_civil)) +
   geom_col() +
@@ -132,7 +132,7 @@ base %>%
   )) %>%
   filter(!is.na(limite_cat)) %>%
   group_by(limite_cat) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(x = limite_cat, y = prop, fill = limite_cat)) +
   geom_col() +
@@ -148,6 +148,7 @@ base %>%
 ```
 
 ### Proporcion de malos pagadores por saldo de tarjeta de credito
+
 ```{r}
 base %>%
   mutate(saldo_cat = Hmisc::cut2(
@@ -162,7 +163,7 @@ base %>%
   )) %>%
   filter(!is.na(saldo_cat)) %>%
   group_by(saldo_cat) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(x = saldo_cat, y = prop, fill = saldo_cat)) +
   geom_col() +
@@ -190,7 +191,7 @@ base %>%
   ) %>%
   filter(!is.na(coeficiente_cat)) %>%
   group_by(coeficiente_cat) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(x = coeficiente_cat, y = prop, fill = coeficiente_cat)) +
   geom_col() +
@@ -232,7 +233,7 @@ base %>%
 ```{r}
 base %>%
   group_by(tipo_ingresos) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(
     x = reorder(tipo_ingresos, -prop),
@@ -280,7 +281,7 @@ base %>%
 ```{r}
 base %>%
   group_by(profesion) %>%
-  summarise(n = n(), prop = mean(1 - buen_pagador)) %>%
+  summarise(n = n(), prop = mean(objetivo)) %>%
   mutate(ci = 1.96 * sqrt(prop * (1 - prop) / n)) %>%
   ggplot(aes(
     x = reorder(profesion, -prop),

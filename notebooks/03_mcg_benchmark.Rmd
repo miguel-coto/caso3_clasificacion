@@ -1,0 +1,205 @@
+---
+title: "Benchmark de modelo"
+author: "Miguel Coto Garcia"
+output: html_notebook
+---
+
+Cargando paquetes
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(here)
+library(tidyverse)
+library(mlr3)
+library("mlr3viz")
+library("mlr3learners")
+library(mlr3pipelines)
+```
+
+# Rutas
+```{r}
+
+raw_data <- here("data", "raw")
+interim_data <- here("data", "interim")
+processed_data <- here("data", "processed")
+
+```
+
+## Leyendo bases
+```{r}
+base <- readRDS(file=paste0(processed_data,"/base_final.Rds"))
+
+base <- base %>%
+  mutate(objetivo = if_else(objetivo==0, "bueno", "malo"))
+
+head(base)
+```
+
+# Tarea de aprendizaje
+## Definicion
+```{r}
+task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "objetivo")
+print(task_tarj)
+```
+
+## 
+```{r message=FALSE, warning=FALSE}
+autoplot(task_tarj$select(c("saldo_tarjeta", "coeficiente_solvencia", "edad", "limite_tarjeta_credito")), type = "pairs")
+task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "buen_pagador")
+```
+
+# Modelos
+
+## Lista de modelos
+
+```{r}
+
+lrn_rpart = lrn("classif.rpart", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_glmnet = lrn("classif.glmnet", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_knn = lrn("classif.kknn", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_lda = lrn("classif.lda", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_log_reg = lrn("classif.log_reg", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_nnet = lrn("classif.nnet", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_rf = lrn("classif.ranger", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_svm = lrn("classif.svm", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_xgboost = lrn("classif.xgboost", predict_type = "prob", predict_sets = c("train", "test"))
+
+```
+
+## Separacion de training y testing
+```{r}
+set.seed(34678)
+train_set = sample(task_tarj$nrow, 0.8 * task_tarj$nrow)
+test_set = setdiff(seq_len(task_tarj$nrow), train_set)
+```
+
+
+# Benchmark
+
+## Prepracion de datos para el benchmark
+```{r}
+th = 
+impute_fcts <- po("imputemode", affect_columns = selector_type("factor"))
+impute_nums <- po("imputehist", affect_columns = selector_type("numeric"))
+encode <- po("encode", affect_columns = selector_type("factor"))
+threshold <- po("threshold", param_vals = list(thresholds = 0.9))
+
+pre_procesamiento <- impute_fcts %>>% 
+  impute_nums %>>% 
+  encode
+
+lrn_rpart <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rpart))
+lrn_glmnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_glmnet))
+lrn_knn <- GraphLearner$new(pre_procesamiento %>>% po(lrn_knn))
+lrn_lda <- GraphLearner$new(pre_procesamiento %>>% po(lrn_lda))
+lrn_log_reg <- GraphLearner$new(pre_procesamiento %>>% po(lrn_log_reg))
+lrn_nnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_nnet))
+lrn_rf <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rf))
+lrn_svm <- GraphLearner$new(pre_procesamiento %>>% po(lrn_svm))
+lrn_xgboost <- GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost))
+
+lrn_rpart$predict_sets = c("train", "test")
+lrn_glmnet$predict_sets = c("train", "test")
+lrn_knn$predict_sets = c("train", "test")
+lrn_lda$predict_sets = c("train", "test")
+lrn_log_reg$predict_sets = c("train", "test")
+lrn_nnet$predict_sets = c("train", "test")
+lrn_rf$predict_sets = c("train", "test")
+lrn_svm$predict_sets = c("train", "test")
+lrn_xgboost$predict_sets = c("train", "test")
+
+lrn_rpart$id = "Árbol"
+lrn_glmnet$id = "Reg-reg"
+lrn_knn$id = "K-vecinos"
+lrn_lda$id = "LDA"
+lrn_log_reg$id = "Reg-log"
+lrn_nnet$id = "Red-Neur"
+lrn_rf$id = "RandomForest"
+lrn_svm$id = "SVM"
+lrn_xgboost$id = "XGBoost"
+
+learners = list(
+  lrn_rpart,
+  lrn_glmnet,
+  lrn_knn,
+  lrn_lda,
+  lrn_log_reg,
+  #lrn_bayes,
+  lrn_rf,
+  lrn_svm,
+  lrn_xgboost
+)
+
+
+```
+
+## Defincion del benchmark
+```{r}
+resamplings = rsmp("cv", folds = 10)
+
+design = benchmark_grid(task_tarj, learners, resamplings)
+
+```
+
+
+## Ejecucion
+```{r}
+future::plan("multiprocess")
+
+bmr = benchmark(design)
+```
+
+
+
+```{r}
+measures = list(
+  msr("classif.auc", id = "auc_train", predict_sets = "train"),
+  msr("classif.auc", id = "auc_test"),
+  msr("classif.acc", id = "acc_train", predict_sets = "train"),
+  msr("classif.acc", id = "acc_test"),
+  msr("classif.fpr", id = "fpr_train", predict_sets = "train"),
+  msr("classif.fpr", id = "fpr_test")
+)
+
+bmr$aggregate(measures)
+
+```
+
+
+```{r}
+
+tab = bmr$aggregate(measures)
+
+ranks = tab[, .(learner_id, rank_train = rank(-auc_train), rank_test = rank(-auc_test)), by = task_id]
+print(ranks)
+```
+
+
+```{r}
+autoplot(bmr$clone(deep = TRUE), type = "roc")
+
+```
+
+
+
+```{r}
+autoplot(bmr, measure = msr("classif.auc")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+autoplot(bmr, measure = msr("classif.acc")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+autoplot(bmr, measure = msr("classif.fpr")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
