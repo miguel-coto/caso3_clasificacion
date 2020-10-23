@@ -65,6 +65,13 @@
       "Repository": "CRAN",
       "Hash": "292b54f8f4b94669b08f94e5acce6be2"
     },
+    "R62S3": {
+      "Package": "R62S3",
+      "Version": "1.4.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "4acfb8c06fce937b3898f55eedf27506"
+    },
     "RColorBrewer": {
       "Package": "RColorBrewer",
       "Version": "1.1-2",
@@ -106,6 +113,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "543776ae6848fde2f48ff3816d0628bc"
+    },
+    "bbotk": {
+      "Package": "bbotk",
+      "Version": "0.2.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "3a337dcfe2d2525583fccf6933c33478"
     },
     "blob": {
       "Package": "blob",
@@ -225,6 +239,18 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "312b822306ececbbf7b9731937d9ec55"
+    },
+    "distr6": {
+      "Package": "distr6",
+      "Version": "1.4.4.9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "distr6",
+      "RemoteUsername": "alan-turing-institute",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "12d8f355e8c68ec6e2dd63653e6a82114f6c20fa",
+      "Hash": "2daf1a7622196dcce91c8aaa8614a305"
     },
     "dplyr": {
       "Package": "dplyr",
@@ -520,6 +546,19 @@
       "Repository": "CRAN",
       "Hash": "f8fcfe985c03e6fdb034e42eef9e428e"
     },
+    "mlr3extralearners": {
+      "Package": "mlr3extralearners",
+      "Version": "0.1.0",
+      "Source": "GitHub",
+      "Remotes": "mlr-org/mlr3, mlr-org/mlr3learners, mlr-org/mlr3proba,\nalan-turing-institute/distr6",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "mlr3extralearners",
+      "RemoteUsername": "mlr-org",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "5460da9740ae82e27105ea4c926680ea0911e7e3",
+      "Hash": "d58b195e235db362746c49f9908d9733"
+    },
     "mlr3learners": {
       "Package": "mlr3learners",
       "Version": "0.4.1",
@@ -547,6 +586,26 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "d00733a68a87d417c6f0a7348efdb170"
+    },
+    "mlr3proba": {
+      "Package": "mlr3proba",
+      "Version": "0.2.3",
+      "Source": "GitHub",
+      "Remotes": "alan-turing-institute/distr6",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "mlr3proba",
+      "RemoteUsername": "mlr-org",
+      "RemoteRef": "HEAD",
+      "RemoteSha": "8f15e14f8094b29a7aa0acb521dbe160c02db3bd",
+      "Hash": "5a95959b6ee1320cec1a01d45bc86f3d"
+    },
+    "mlr3tuning": {
+      "Package": "mlr3tuning",
+      "Version": "0.4.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "5f904bc7dc627e2972a58fc1665c39da"
     },
     "mlr3viz": {
       "Package": "mlr3viz",
@@ -764,6 +823,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "3838071b66e0c566d55cc26bd6e27bf4"
+    },
+    "set6": {
+      "Package": "set6",
+      "Version": "0.1.8",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "dbd63664c6840a949a6427859c815eca"
     },
     "snakecase": {
       "Package": "snakecase",

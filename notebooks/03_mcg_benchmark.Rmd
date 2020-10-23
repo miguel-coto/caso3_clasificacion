@@ -13,6 +13,8 @@ library(mlr3)
 library("mlr3viz")
 library("mlr3learners")
 library(mlr3pipelines)
+library(mlr3extralearners)
+library("mlr3tuning")
 ```
 
 # Rutas
@@ -29,7 +31,7 @@ processed_data <- here("data", "processed")
 base <- readRDS(file=paste0(processed_data,"/base_final.Rds"))
 
 base <- base %>%
-  mutate(objetivo = if_else(objetivo==0, "bueno", "malo"))
+  mutate(objetivo = factor(if_else(objetivo==0, "bueno", "malo")))
 
 head(base)
 ```
@@ -41,10 +43,10 @@ task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "objetivo"
 print(task_tarj)
 ```
 
-## 
+
 ```{r message=FALSE, warning=FALSE}
-autoplot(task_tarj$select(c("saldo_tarjeta", "coeficiente_solvencia", "edad", "limite_tarjeta_credito")), type = "pairs")
-task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "buen_pagador")
+#autoplot(task_tarj$select(c("saldo_tarjeta", "coeficiente_solvencia", "edad", "limite_tarjeta_credito")), type = "pairs")
+#task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "objetivo")
 ```
 
 # Modelos
@@ -53,15 +55,14 @@ task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "buen_paga
 
 ```{r}
 
-lrn_rpart = lrn("classif.rpart", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_glmnet = lrn("classif.glmnet", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_knn = lrn("classif.kknn", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_lda = lrn("classif.lda", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_log_reg = lrn("classif.log_reg", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_nnet = lrn("classif.nnet", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_rf = lrn("classif.ranger", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_svm = lrn("classif.svm", predict_type = "prob", predict_sets = c("train", "test"))
-lrn_xgboost = lrn("classif.xgboost", predict_type = "prob", predict_sets = c("train", "test"))
+lrn_rpart = lrn("classif.rpart", predict_type = "prob")
+lrn_glmnet = lrn("classif.glmnet", predict_type = "prob")
+lrn_knn = lrn("classif.kknn", predict_type = "prob")
+lrn_lda = lrn("classif.lda", predict_type = "prob")
+lrn_nnet = lrn("classif.nnet", predict_type = "prob")
+lrn_rf = lrn("classif.ranger", predict_type = "prob")
+lrn_svm = lrn("classif.svm", predict_type = "prob")
+lrn_xgboost = lrn("classif.xgboost", predict_type = "prob")
 
 ```
 
@@ -77,31 +78,39 @@ test_set = setdiff(seq_len(task_tarj$nrow), train_set)
 
 ## Prepracion de datos para el benchmark
 ```{r}
-th = 
+th = prop.table(table(base$objetivo))[2]
 impute_fcts <- po("imputemode", affect_columns = selector_type("factor"))
 impute_nums <- po("imputehist", affect_columns = selector_type("numeric"))
 encode <- po("encode", affect_columns = selector_type("factor"))
-threshold <- po("threshold", param_vals = list(thresholds = 0.9))
+threshold <- po("threshold", param_vals = list(thresholds = th))
 
 pre_procesamiento <- impute_fcts %>>% 
   impute_nums %>>% 
   encode
 
-lrn_rpart <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rpart))
-lrn_glmnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_glmnet))
-lrn_knn <- GraphLearner$new(pre_procesamiento %>>% po(lrn_knn))
-lrn_lda <- GraphLearner$new(pre_procesamiento %>>% po(lrn_lda))
-lrn_log_reg <- GraphLearner$new(pre_procesamiento %>>% po(lrn_log_reg))
-lrn_nnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_nnet))
-lrn_rf <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rf))
-lrn_svm <- GraphLearner$new(pre_procesamiento %>>% po(lrn_svm))
-lrn_xgboost <- GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost))
+lrn_rpart$predict_type = "prob"
+lrn_glmnet$predict_type = "prob"
+lrn_knn$predict_type = "prob"
+lrn_lda$predict_type = "prob"
+lrn_nnet$predict_type = "prob"
+lrn_rf$predict_type = "prob"
+lrn_svm$predict_type = "prob"
+lrn_xgboost$predict_type = "prob"
+
+lrn_rpart <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rpart) %>>% threshold) 
+lrn_glmnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_glmnet) %>>% threshold) 
+lrn_knn <- GraphLearner$new(pre_procesamiento %>>% po(lrn_knn) %>>% threshold) 
+lrn_lda <- GraphLearner$new(pre_procesamiento %>>% po(lrn_lda) %>>% threshold) 
+lrn_nnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_nnet) %>>% threshold) 
+lrn_rf <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rf) %>>% threshold) 
+lrn_svm <- GraphLearner$new(pre_procesamiento %>>% po(lrn_svm) %>>% threshold) 
+lrn_xgboost <- GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% threshold) 
 
 lrn_rpart$predict_sets = c("train", "test")
 lrn_glmnet$predict_sets = c("train", "test")
 lrn_knn$predict_sets = c("train", "test")
 lrn_lda$predict_sets = c("train", "test")
-lrn_log_reg$predict_sets = c("train", "test")
+#lrn_log_reg$predict_sets = c("train", "test")
 lrn_nnet$predict_sets = c("train", "test")
 lrn_rf$predict_sets = c("train", "test")
 lrn_svm$predict_sets = c("train", "test")
@@ -111,7 +120,7 @@ lrn_rpart$id = "Árbol"
 lrn_glmnet$id = "Reg-reg"
 lrn_knn$id = "K-vecinos"
 lrn_lda$id = "LDA"
-lrn_log_reg$id = "Reg-log"
+#lrn_log_reg$id = "Reg-log"
 lrn_nnet$id = "Red-Neur"
 lrn_rf$id = "RandomForest"
 lrn_svm$id = "SVM"
@@ -122,8 +131,8 @@ learners = list(
   lrn_glmnet,
   lrn_knn,
   lrn_lda,
-  lrn_log_reg,
-  #lrn_bayes,
+  #lrn_log_reg,
+  lrn_nnet,
   lrn_rf,
   lrn_svm,
   lrn_xgboost
@@ -152,12 +161,12 @@ bmr = benchmark(design)
 
 ```{r}
 measures = list(
-  msr("classif.auc", id = "auc_train", predict_sets = "train"),
-  msr("classif.auc", id = "auc_test"),
   msr("classif.acc", id = "acc_train", predict_sets = "train"),
   msr("classif.acc", id = "acc_test"),
-  msr("classif.fpr", id = "fpr_train", predict_sets = "train"),
-  msr("classif.fpr", id = "fpr_test")
+  msr("classif.ppv", id = "ppv_train", predict_sets = "train"),
+  msr("classif.ppv", id = "ppv_test"),
+  msr("classif.tpr", id = "tpr_train", predict_sets = "train"),
+  msr("classif.tpr", id = "tpr_test")
 )
 
 bmr$aggregate(measures)
@@ -169,7 +178,7 @@ bmr$aggregate(measures)
 
 tab = bmr$aggregate(measures)
 
-ranks = tab[, .(learner_id, rank_train = rank(-auc_train), rank_test = rank(-auc_test)), by = task_id]
+ranks = tab[, .(learner_id, rank_train = rank(-acc_train), rank_test = rank(-acc_test)), by = task_id]
 print(ranks)
 ```
 
@@ -196,8 +205,178 @@ autoplot(bmr, measure = msr("classif.acc")) +
 ```
 
 ```{r}
-autoplot(bmr, measure = msr("classif.fpr")) + 
+autoplot(bmr, measure = msr("classif.tpr")) + 
            theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
+```{r}
+autoplot(bmr, measure = msr("classif.ppv")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+
+
+
+```{r}
+
+lrn_rf_2 = lrn_rf
+
+lrn_rf_2$train(task_tarj, row_ids = train_set)
+pred_fr = lrn_rf_2$predict(task_tarj, row_ids = test_set)
+
+pred_fr$confusion
+
+```
+
+```{r}
+
+lrn_xgboost_2 = lrn_xgboost
+
+lrn_xgboost_2$train(task_tarj, row_ids = train_set)
+pred_xg = lrn_xgboost_2$predict(task_tarj, row_ids = test_set, )
+
+pred_xg$confusion
+
+
+```
+
+
+
+# Costos
+
+```{r}
+costs = matrix(c(0, 1, 0, -.9), nrow = 2)
+dimnames(costs) = list(response = c("bueno", "malo"), truth = c("bueno", "malo"))
+print(costs)
+```
+
+
+```{r}
+table(task_tarj$truth())
+```
+
+```{r}
+(13334 * costs[2, 1] + 1166 * costs[2, 2]) / 14500
+
+```
+
+```{r}
+(13334 * costs[1, 1] + 1166 * costs[1, 2]) / 14500
+
+```
+
+```{r}
+
+.85*1000*1000
+
+```
+
+
+
+Modelo sencillo
+```{r}
+
+learner = GraphLearner$new(pre_procesamiento %>>% po(lrn("classif.rpart"))) 
+rr = resample(task_tarj, learner, rsmp("cv"))
+
+confusion = rr$prediction()$confusion
+print(confusion)
+
+```
+
+
+```{r}
+avg_costs = sum(confusion * costs) / 1000
+print(avg_costs)
+```
+
+```{r}
+-0.069*1000*1000
+```
+
+
+
+```{r}
+cost_measure = msr("classif.costs", costs = costs)
+print(cost_measure)
+```
+
+```{r}
+learners = list(
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.log_reg")),
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.featureless")),
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.ranger")),
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.rpart"))
+
+)
+cv3 = rsmp("cv", folds = 3)
+bmr = benchmark(benchmark_grid(task_tarj, learners, cv3))
+bmr$aggregate(cost_measure)
+```
+
+```{r}
+learner = GraphLearner$new(pre_procesamiento %>>% lrn("classif.log_reg", predict_type = "prob")) 
+rr = resample(task_tarj, learner, rsmp("cv"))
+p = rr$prediction()
+print(p)
+
+```
+
+
+
+```{r}
+with_threshold = function(p, th) {
+  p$set_threshold(th)
+  list(confusion = p$confusion, costs = p$score(measures = cost_measure, task = task_tarj))
+}
+```
+
+```{r}
+with_threshold(p, 0.5)
+with_threshold(p, 0.75)
+with_threshold(p, 0.92)
+```
+
+
+
+
+
+```{r}
+
+#gr = lrn("classif.rpart", predict_type = "prob") %>>% po("threshold")
+#l = GraphLearner$new(gr)
+
+
+
+lrn_xgboost_th <-
+  GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% po("threshold")) 
+
+#lrn_xgboost_th2 <-
+#  GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% po("tunethreshold")) 
+
+library(paradox)
+ps = ParamSet$new(list(
+  ParamDbl$new("threshold.thresholds", lower = 0, upper = 1)
+))
+
+at = AutoTuner$new(
+  learner = lrn_xgboost_th,
+  resampling = rsmp("cv", folds = 10L),
+  measure = msr("classif."),
+  search_space = ps,
+  terminator = trm("evals", n_evals = 100L),
+  tuner = TunerRandomSearch$new()
+)
+
+at$train(task_tarj, row_ids = train_set)
+pred_xg_2 = at$predict(task_tarj, row_ids = test_set)
+
+pred_xg_2$confusion
 
 
 ```

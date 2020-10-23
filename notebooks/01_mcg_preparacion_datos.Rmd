@@ -59,9 +59,11 @@ base_final <- base %>%
       codg_sector_trab
     )
   ) %>%
-  mutate(objetivo = if_else(buen_pagador == "bueno", 0, 1)) %>%
+  mutate(buen_pagador = if_else(buen_pagador == "bueno", 0, 1)) %>%
   rename(tipo_ingresos = tipo_ingresos_2,
-         profesion = profesion4) %>%
+         profesion = profesion4,
+         objetivo = buen_pagador
+         ) %>%
   mutate(across(where(is.character), as.factor))
 
 head(base_final)
