@@ -1,0 +1,209 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Cargando paquetes
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(here)
+library(tidyverse)
+library(mlr3)
+library("mlr3viz")
+library("mlr3learners")
+library(mlr3pipelines)
+library(mlr3extralearners)
+library("mlr3tuning")
+```
+
+# Rutas
+```{r}
+
+raw_data <- here("data", "raw")
+interim_data <- here("data", "interim")
+processed_data <- here("data", "processed")
+
+```
+
+## Leyendo bases
+```{r}
+base <- readRDS(file=paste0(processed_data,"/base_final.Rds"))
+
+base <- base %>%
+  mutate(objetivo = factor(if_else(objetivo==0, "bueno", "malo")))
+
+head(base)
+```
+
+# Tarea de aprendizaje
+## Definicion
+```{r}
+task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "objetivo")
+print(task_tarj)
+```
+
+## Preprocesamiento
+```{r}
+impute_fcts <- po("imputemode", affect_columns = selector_type("factor"))
+impute_nums <- po("imputehist", affect_columns = selector_type("numeric"))
+encode <- po("encode", affect_columns = selector_type("factor"))
+
+pre_procesamiento <- impute_fcts %>>% 
+  impute_nums %>>% 
+  encode
+```
+
+
+# Costos
+
+## definicion de costos
+```{r}
+costs = matrix(c(0, 2, 3, -1), nrow = 2)
+dimnames(costs) = list(response = c("bueno", "malo"), truth = c("bueno", "malo"))
+print(costs)
+```
+
+
+```{r}
+table(task_tarj$truth())
+```
+
+```{r}
+(13334 * costs[2, 1] + 1166 * costs[2, 2]) / 14500
+
+```
+
+```{r}
+(13334 * costs[1, 1] + 1166 * costs[1, 2]) / 14500
+
+```
+
+```{r}
+
+.85*1000*1000
+
+```
+
+
+## Modelos
+Modelo sencillo
+```{r}
+
+learner = GraphLearner$new(pre_procesamiento %>>% po(lrn("classif.rpart"))) 
+rr = resample(task_tarj, learner, rsmp("cv"))
+
+confusion = rr$prediction()$confusion
+print(confusion)
+
+```
+
+Costo promedio
+```{r}
+avg_costs = sum(confusion * costs) / 14500
+print(avg_costs)
+```
+
+```{r}
+-0.069*1000*1000
+```
+
+
+## Optimizacion de th por costo
+
+```{r}
+cost_measure = msr("classif.costs", costs = costs)
+print(cost_measure)
+```
+
+```{r}
+learners = list(
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.log_reg")),
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.xgboost")),
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.ranger")),
+  GraphLearner$new(pre_procesamiento %>>% lrn("classif.rpart"))
+
+)
+cv3 = rsmp("cv", folds = 3)
+bmr = benchmark(benchmark_grid(task_tarj, learners, cv3))
+bmr$aggregate(cost_measure)
+```
+
+```{r}
+learner = GraphLearner$new(pre_procesamiento %>>% lrn("classif.xgboost", predict_type = "prob")) 
+rr = resample(task_tarj, learner, rsmp("cv"))
+p = rr$prediction()
+print(p)
+
+```
+
+
+
+```{r}
+with_threshold = function(p, th) {
+  p$set_threshold(th)
+  list(confusion = p$confusion, costs = p$score(measures = cost_measure, task = task_tarj))
+}
+```
+
+```{r}
+with_threshold(p, 0.5)
+with_threshold(p, 0.75)
+with_threshold(p, 0.92)
+```
+
+```{r}
+f = function(th) {
+  with_threshold(p, th)$costs
+}
+best = optimize(f, seq(.05, 1, 0.01))
+print(best)
+
+```
+
+
+```{r}
+with_threshold(p, best$minimum)$confusion
+```
+
+
+```{r}
+
+cv10_instance = rsmp("cv", folds = 10)
+
+lrn_xgboost = lrn("classif.xgboost", predict_type = "prob")
+
+lrn_xgboost_th <-
+  GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% po("threshold"))
+
+#lrn_xgboost_th2 <-
+#  GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% po("tunethreshold"))
+
+library(paradox)
+ps = ParamSet$new(list(
+  ParamDbl$new("threshold.thresholds", lower = 0, upper = 1)
+))
+
+at = AutoTuner$new(
+  learner = lrn_xgboost_th,
+  resampling = rsmp("cv", folds = 5L),
+  measure = cost_measure,
+  search_space = ps,
+  terminator = trm("none"),
+  #terminator = trm("evals", n_evals = 100L),
+  tuner = tnr("grid_search", resolution = 500),
+  #tuner = TunerRandomSearch$new()
+)
+
+
+rr_th = resample(task_tarj, at, cv10_instance, store_models = TRUE)
+
+rr$aggregate()
+#at$train(task_tarj, row_ids = train_set)
+#pred_xg_2 = at$predict(task_tarj, row_ids = test_set)
+
+#pred_xg_2$confusion
+
+
+```
+
+

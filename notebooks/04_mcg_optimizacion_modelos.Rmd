@@ -1,0 +1,270 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Cargando paquetes
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+library(here)
+library(tidyverse)
+library(mlr3)
+library("mlr3viz")
+library("mlr3learners")
+library(mlr3pipelines)
+#library(mlr3extralearners)
+library("mlr3tuning")
+library("paradox")
+```
+
+# Rutas
+```{r}
+
+raw_data <- here("data", "raw")
+interim_data <- here("data", "interim")
+processed_data <- here("data", "processed")
+
+```
+
+## Leyendo bases
+```{r}
+base <- readRDS(file=paste0(processed_data,"/base_final.Rds"))
+
+base <- base %>%
+  mutate(objetivo = factor(if_else(objetivo==0, "bueno", "malo")))
+
+head(base)
+```
+
+# Tarea de aprendizaje
+## Definicion
+```{r}
+task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "objetivo", positive = "malo")
+print(task_tarj)
+```
+
+## Preprocesamiento
+```{r}
+impute_fcts <- po("imputemode", affect_columns = selector_type("factor"))
+impute_nums <- po("imputehist", affect_columns = selector_type("numeric"))
+encode <- po("encode", affect_columns = selector_type("factor"))
+
+pre_procesamiento <- impute_fcts %>>% 
+  impute_nums %>>% 
+  encode
+```
+
+## Diseño de undersampling y oversampling
+
+### Undersampling
+```{r}
+po_under = po("classbalancing",
+  id = "undersample", adjust = "major",
+  reference = "major", shuffle = FALSE, ratio = 1 / 10)
+# reduce majority class by factor '1/ratio'
+table(po_under$train(list(task_tarj))$output$truth())
+```
+
+### Oversampling
+```{r}
+po_over = po("classbalancing",
+  id = "oversample", adjust = "minor",
+  reference = "minor", shuffle = FALSE, ratio = 10)
+# enrich minority class by factor 'ratio'
+table(po_over$train(list(task_tarj))$output$truth())
+```
+
+
+# Modelos 
+
+```{r}
+set.seed(800)
+cv10_instance = rsmp("cv", folds = 10)
+
+# fix the train-test splits using the $instantiate() method
+cv10_instance$instantiate(task_tarj)
+
+# have a look at the test set instances per fold
+cv10_instance$instance
+
+measure = msrs(c("classif.auc", "classif.acc", "classif.tpr", "classif.ppv","classif.fbeta"))
+
+outer_resampling = rsmp("cv", folds = 5)
+```
+
+
+## RandomForest
+
+### Modelo
+
+```{r}
+rf <- lrn("classif.ranger", predict_type = "prob")
+
+# combine learner with pipeline graph
+lrn_under = GraphLearner$new(pre_procesamiento %>>% po_under %>>% rf)
+lrn_over = GraphLearner$new(pre_procesamiento %>>% po_over %>>% rf)
+lrn_rf = GraphLearner$new(pre_procesamiento %>>% rf)
+
+```
+
+### Parametros
+```{r}
+sp_rf = ParamSet$new(list(
+  ParamInt$new("classif.ranger.mtry", lower = 2, upper = 6),
+  ParamInt$new("classif.ranger.min.node.size", lower = 1, upper = 50),
+  ParamInt$new("classif.ranger.num.trees", lower = 500, upper = 1000),
+  ParamDbl$new("classif.ranger.sample.fraction", lower = .2, upper = .9)
+))
+```
+
+### Learners
+```{r}
+learns_rf = list(
+  at_rf = AutoTuner$new(
+    learner = lrn_under,
+    resampling = rsmp("cv", folds = 5),
+    measure = msr("classif.fbeta"),
+    search_space = sp_rf,
+    terminator = trm("evals", n_evals = 500),
+    tuner = tnr("random_search")
+  ),
+  at_rf = AutoTuner$new(
+    learner = lrn_over,
+    resampling = rsmp("cv", folds = 5),
+    measure = msr("classif.fbeta"),
+    search_space = sp_rf,
+    terminator = trm("evals", n_evals = 500),
+    tuner = tnr("random_search")
+  ),
+  at_rf = AutoTuner$new(
+    learner = lrn_rf,
+    resampling = rsmp("cv", folds = 5),
+    measure = msr("classif.fbeta"),
+    search_space = sp_rf,
+    terminator = trm("evals", n_evals = 500),
+    tuner = tnr("random_search")
+  )
+)
+```
+
+### Benchmark
+```{r}
+
+design_rf = benchmark_grid(
+  tasks = task_tarj,
+  learners = learns_rf,
+  resamplings = outer_resampling
+)
+```
+
+### Resultados
+```{r}
+future::plan("multiprocess")
+
+set.seed(111)
+bmr_rf = benchmark(design_rf, store_models = TRUE)
+```
+
+```{r}
+bmr_rf$aggregate(measure)
+```
+
+```{r}
+autoplot(bmr_rf, measure = msr("classif.auc"))
+autoplot(bmr_rf, measure = msr("classif.acc"))
+autoplot(bmr_rf, measure = msr("classif.fbeta"))
+autoplot(bmr_rf, measure = msr("classif.tpr"))
+autoplot(bmr_rf, measure = msr("classif.ppv"))
+
+```
+
+
+
+## XGBoost
+
+### Modelo
+
+```{r}
+xg <- lrn("classif.xgboost", predict_type = "prob")
+
+# combine learner with pipeline graph
+lrn_under_xg = GraphLearner$new(pre_procesamiento %>>% po_under %>>% xg)
+lrn_over_xg = GraphLearner$new(pre_procesamiento %>>% po_over %>>% xg)
+lrn_xg = GraphLearner$new(pre_procesamiento %>>% xg)
+
+```
+
+### Parametros
+```{r}
+sp_xg = ParamSet$new(list(
+  ParamDbl$new("classif.xgboost.eta", lower = 0.01, upper = 0.5),
+  ParamInt$new("classif.xgboost.nrounds", lower = 100, upper = 800),
+  ParamInt$new("classif.xgboost.max_depth", lower = 3, upper = 20),
+  ParamDbl$new("classif.xgboost.subsample", lower = .5, upper = .8),
+  ParamDbl$new("classif.xgboost.colsample_bytree", lower = .5, upper = .9)
+))
+```
+
+### Learners
+```{r}
+learns_xg = list(
+  at_xg = AutoTuner$new(
+    learner = lrn_under_xg,
+    resampling = rsmp("cv", folds = 5),
+    measure = msr("classif.fbeta"),
+    search_space = sp_xg,
+    terminator = trm("evals", n_evals = 500),
+    tuner = tnr("random_search")
+  ),
+  at_xg = AutoTuner$new(
+    learner = lrn_over_xg,
+    resampling = rsmp("cv", folds = 5),
+    measure = msr("classif.fbeta"),
+    search_space = sp_xg,
+    terminator = trm("evals", n_evals = 500),
+    tuner = tnr("random_search")
+  ),
+  at_xg = AutoTuner$new(
+    learner = lrn_xg,
+    resampling = rsmp("cv", folds = 5),
+    measure = msr("classif.fbeta"),
+    search_space = sp_xg,
+    terminator = trm("evals", n_evals = 500),
+    tuner = tnr("random_search")
+  )
+)
+```
+
+### Benchmark
+```{r}
+
+design_xg = benchmark_grid(
+  tasks = task_tarj,
+  learners = learns_xg,
+  resamplings = outer_resampling
+)
+```
+
+### Resultados
+```{r}
+future::plan("multiprocess")
+
+set.seed(111)
+bmr_xg = benchmark(design_xg, store_models = TRUE)
+```
+
+```{r}
+bmr_xg$aggregate(measure)
+```
+
+```{r}
+autoplot(bmr_xg, measure = msr("classif.auc"))
+autoplot(bmr_xg, measure = msr("classif.acc"))
+autoplot(bmr_xg, measure = msr("classif.fbeta"))
+autoplot(bmr_xg, measure = msr("classif.tpr"))
+autoplot(bmr_xg, measure = msr("classif.ppv"))
+
+```
+
+
+

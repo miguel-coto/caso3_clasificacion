@@ -13,7 +13,7 @@ library(mlr3)
 library("mlr3viz")
 library("mlr3learners")
 library(mlr3pipelines)
-library(mlr3extralearners)
+#library(mlr3extralearners)
 library("mlr3tuning")
 ```
 
@@ -38,10 +38,22 @@ head(base)
 
 # Tarea de aprendizaje
 ## Definicion
+
+
+
 ```{r}
 task_tarj = TaskClassif$new(id = "tarjetas", backend = base, target = "objetivo")
 print(task_tarj)
 ```
+
+## Separacion de training y testing
+```{r}
+set.seed(34678)
+train_set = sample(task_tarj$nrow, 0.8 * task_tarj$nrow)
+test_set = setdiff(seq_len(task_tarj$nrow), train_set)
+```
+
+
 
 
 ```{r message=FALSE, warning=FALSE}
@@ -66,19 +78,13 @@ lrn_xgboost = lrn("classif.xgboost", predict_type = "prob")
 
 ```
 
-## Separacion de training y testing
-```{r}
-set.seed(34678)
-train_set = sample(task_tarj$nrow, 0.8 * task_tarj$nrow)
-test_set = setdiff(seq_len(task_tarj$nrow), train_set)
-```
-
-
 # Benchmark
 
 ## Prepracion de datos para el benchmark
+### Punto de corte: 0.5
 ```{r}
-th = prop.table(table(base$objetivo))[2]
+#th = prop.table(table(base$objetivo))[1]
+th = .5
 impute_fcts <- po("imputemode", affect_columns = selector_type("factor"))
 impute_nums <- po("imputehist", affect_columns = selector_type("numeric"))
 encode <- po("encode", affect_columns = selector_type("factor"))
@@ -151,12 +157,20 @@ design = benchmark_grid(task_tarj, learners, resamplings)
 
 
 ## Ejecucion
-```{r}
+```{r message=FALSE, warning=FALSE}
 future::plan("multiprocess")
 
 bmr = benchmark(design)
 ```
 
+## Medidas
+
+```{r}
+costs = matrix(c(0, 2, 3, -1), nrow = 2)
+dimnames(costs) = list(response = c("bueno", "malo"), truth = c("bueno", "malo"))
+cost_measure = msr("classif.costs", costs = costs)
+
+```
 
 
 ```{r}
@@ -166,7 +180,9 @@ measures = list(
   msr("classif.ppv", id = "ppv_train", predict_sets = "train"),
   msr("classif.ppv", id = "ppv_test"),
   msr("classif.tpr", id = "tpr_train", predict_sets = "train"),
-  msr("classif.tpr", id = "tpr_test")
+  msr("classif.tpr", id = "tpr_test"),
+  msr("classif.costs", costs = costs, id = "cost_train", predict_sets = "train"),
+  msr("classif.costs", costs = costs, id = "cost_test")
 )
 
 bmr$aggregate(measures)
@@ -182,6 +198,8 @@ ranks = tab[, .(learner_id, rank_train = rank(-acc_train), rank_test = rank(-acc
 print(ranks)
 ```
 
+## Graficos comparativos
+
 
 ```{r}
 autoplot(bmr$clone(deep = TRUE), type = "roc")
@@ -189,7 +207,7 @@ autoplot(bmr$clone(deep = TRUE), type = "roc")
 ```
 
 
-
+### Area bajo la curva de ROC
 ```{r}
 autoplot(bmr, measure = msr("classif.auc")) + 
            theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -197,6 +215,8 @@ autoplot(bmr, measure = msr("classif.auc")) +
 
 ```
 
+
+### Precision
 ```{r}
 autoplot(bmr, measure = msr("classif.acc")) + 
            theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -204,6 +224,7 @@ autoplot(bmr, measure = msr("classif.acc")) +
 
 ```
 
+### Sensitividad (tpr)
 ```{r}
 autoplot(bmr, measure = msr("classif.tpr")) + 
            theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -211,174 +232,185 @@ autoplot(bmr, measure = msr("classif.tpr")) +
 
 ```
 
-
+### Precicsion (ppv)
 ```{r}
 autoplot(bmr, measure = msr("classif.ppv")) + 
            theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 ```
-
-
-
-
+### Costo
 ```{r}
-
-lrn_rf_2 = lrn_rf
-
-lrn_rf_2$train(task_tarj, row_ids = train_set)
-pred_fr = lrn_rf_2$predict(task_tarj, row_ids = test_set)
-
-pred_fr$confusion
-
-```
-
-```{r}
-
-lrn_xgboost_2 = lrn_xgboost
-
-lrn_xgboost_2$train(task_tarj, row_ids = train_set)
-pred_xg = lrn_xgboost_2$predict(task_tarj, row_ids = test_set, )
-
-pred_xg$confusion
+autoplot(bmr, measure = cost_measure) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 ```
 
-
-
-# Costos
-
+### Punto de corte: 0.92
 ```{r}
-costs = matrix(c(0, 1, 0, -.9), nrow = 2)
-dimnames(costs) = list(response = c("bueno", "malo"), truth = c("bueno", "malo"))
-print(costs)
-```
+th2 = prop.table(table(base$objetivo))[1]
 
+threshold2 <- po("threshold", param_vals = list(thresholds = th2))
 
-```{r}
-table(task_tarj$truth())
-```
+lrn_rpart = lrn("classif.rpart", predict_type = "prob")
+lrn_glmnet = lrn("classif.glmnet", predict_type = "prob")
+lrn_knn = lrn("classif.kknn", predict_type = "prob")
+lrn_lda = lrn("classif.lda", predict_type = "prob")
+lrn_nnet = lrn("classif.nnet", predict_type = "prob")
+lrn_rf = lrn("classif.ranger", predict_type = "prob")
+lrn_svm = lrn("classif.svm", predict_type = "prob")
+lrn_xgboost = lrn("classif.xgboost", predict_type = "prob")
 
-```{r}
-(13334 * costs[2, 1] + 1166 * costs[2, 2]) / 14500
+lrn_rpart <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rpart) %>>% threshold2) 
+lrn_glmnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_glmnet) %>>% threshold2) 
+lrn_knn <- GraphLearner$new(pre_procesamiento %>>% po(lrn_knn) %>>% threshold2) 
+lrn_lda <- GraphLearner$new(pre_procesamiento %>>% po(lrn_lda) %>>% threshold2) 
+lrn_nnet <- GraphLearner$new(pre_procesamiento %>>% po(lrn_nnet) %>>% threshold2) 
+lrn_rf <- GraphLearner$new(pre_procesamiento %>>% po(lrn_rf) %>>% threshold2) 
+lrn_svm <- GraphLearner$new(pre_procesamiento %>>% po(lrn_svm) %>>% threshold2) 
+lrn_xgboost <- GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% threshold2) 
 
-```
+lrn_rpart$predict_sets = c("train", "test")
+lrn_glmnet$predict_sets = c("train", "test")
+lrn_knn$predict_sets = c("train", "test")
+lrn_lda$predict_sets = c("train", "test")
+#lrn_log_reg$predict_sets = c("train", "test")
+lrn_nnet$predict_sets = c("train", "test")
+lrn_rf$predict_sets = c("train", "test")
+lrn_svm$predict_sets = c("train", "test")
+lrn_xgboost$predict_sets = c("train", "test")
 
-```{r}
-(13334 * costs[1, 1] + 1166 * costs[1, 2]) / 14500
+lrn_rpart$id = "Árbol"
+lrn_glmnet$id = "Reg-reg"
+lrn_knn$id = "K-vecinos"
+lrn_lda$id = "LDA"
+#lrn_log_reg$id = "Reg-log"
+lrn_nnet$id = "Red-Neur"
+lrn_rf$id = "RandomForest"
+lrn_svm$id = "SVM"
+lrn_xgboost$id = "XGBoost"
 
-```
-
-```{r}
-
-.85*1000*1000
-
-```
-
-
-
-Modelo sencillo
-```{r}
-
-learner = GraphLearner$new(pre_procesamiento %>>% po(lrn("classif.rpart"))) 
-rr = resample(task_tarj, learner, rsmp("cv"))
-
-confusion = rr$prediction()$confusion
-print(confusion)
-
-```
-
-
-```{r}
-avg_costs = sum(confusion * costs) / 1000
-print(avg_costs)
-```
-
-```{r}
--0.069*1000*1000
-```
-
-
-
-```{r}
-cost_measure = msr("classif.costs", costs = costs)
-print(cost_measure)
-```
-
-```{r}
-learners = list(
-  GraphLearner$new(pre_procesamiento %>>% lrn("classif.log_reg")),
-  GraphLearner$new(pre_procesamiento %>>% lrn("classif.featureless")),
-  GraphLearner$new(pre_procesamiento %>>% lrn("classif.ranger")),
-  GraphLearner$new(pre_procesamiento %>>% lrn("classif.rpart"))
-
-)
-cv3 = rsmp("cv", folds = 3)
-bmr = benchmark(benchmark_grid(task_tarj, learners, cv3))
-bmr$aggregate(cost_measure)
-```
-
-```{r}
-learner = GraphLearner$new(pre_procesamiento %>>% lrn("classif.log_reg", predict_type = "prob")) 
-rr = resample(task_tarj, learner, rsmp("cv"))
-p = rr$prediction()
-print(p)
-
-```
-
-
-
-```{r}
-with_threshold = function(p, th) {
-  p$set_threshold(th)
-  list(confusion = p$confusion, costs = p$score(measures = cost_measure, task = task_tarj))
-}
-```
-
-```{r}
-with_threshold(p, 0.5)
-with_threshold(p, 0.75)
-with_threshold(p, 0.92)
-```
-
-
-
-
-
-```{r}
-
-#gr = lrn("classif.rpart", predict_type = "prob") %>>% po("threshold")
-#l = GraphLearner$new(gr)
-
-
-
-lrn_xgboost_th <-
-  GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% po("threshold")) 
-
-#lrn_xgboost_th2 <-
-#  GraphLearner$new(pre_procesamiento %>>% po(lrn_xgboost) %>>% po("tunethreshold")) 
-
-library(paradox)
-ps = ParamSet$new(list(
-  ParamDbl$new("threshold.thresholds", lower = 0, upper = 1)
-))
-
-at = AutoTuner$new(
-  learner = lrn_xgboost_th,
-  resampling = rsmp("cv", folds = 10L),
-  measure = msr("classif."),
-  search_space = ps,
-  terminator = trm("evals", n_evals = 100L),
-  tuner = TunerRandomSearch$new()
+learners2 = list(
+  lrn_rpart,
+  lrn_glmnet,
+  lrn_knn,
+  lrn_lda,
+  #lrn_log_reg,
+  lrn_nnet,
+  lrn_rf,
+  lrn_svm,
+  lrn_xgboost
 )
 
-at$train(task_tarj, row_ids = train_set)
-pred_xg_2 = at$predict(task_tarj, row_ids = test_set)
 
-pred_xg_2$confusion
+```
+
+## Defincion del benchmark
+```{r}
+design2 = benchmark_grid(task_tarj, learners2, resamplings)
+
+```
+
+
+## Ejecucion
+```{r message=FALSE, warning=FALSE}
+future::plan("multiprocess")
+
+bmr2 = benchmark(design2)
+```
+
+## Medidas
+
+
+```{r}
+
+bmr2$aggregate(measures)
+
+```
+
+
+```{r}
+
+tab2 = bmr2$aggregate(measures)
+
+ranks2 = tab2[, .(learner_id, rank_train = rank(-acc_train), rank_test = rank(-acc_test)), by = task_id]
+print(ranks2)
+```
+
+## Graficos comparativos
+
+
+```{r}
+autoplot(bmr2$clone(deep = TRUE), type = "roc")
+
+```
+
+
+### Area bajo la curva de ROC
+```{r}
+autoplot(bmr2, measure = msr("classif.auc")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 ```
+
+
+### Precision
+```{r}
+autoplot(bmr2, measure = msr("classif.acc")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+### Sensitividad (tpr)
+```{r}
+autoplot(bmr2, measure = msr("classif.tpr")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+### Precicsion (ppv)
+```{r}
+autoplot(bmr2, measure = msr("classif.ppv")) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+### Costo
+```{r}
+autoplot(bmr2, measure = cost_measure) + 
+           theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+
+# lrn_rf_2 = lrn_rf
+# 
+# lrn_rf_2$train(task_tarj, row_ids = train_set)
+# pred_fr = lrn_rf_2$predict(task_tarj, row_ids = test_set)
+# 
+# pred_fr$confusion
+
+```
+
+```{r}
+
+# lrn_xgboost_2 = lrn_xgboost
+# 
+# lrn_xgboost_2$train(task_tarj, row_ids = train_set)
+# pred_xg = lrn_xgboost_2$predict(task_tarj, row_ids = test_set, )
+# 
+# pred_xg$confusion
+
+
+```
+
+
 
 
